@@ -1,0 +1,3 @@
+git+https://github.com/Raffaelbdl/flax_rl
+git+https://github.com/Raffaelbdl/jrd_extensions
+git+https://github.com/Raffaelbdl/distrax_flax
