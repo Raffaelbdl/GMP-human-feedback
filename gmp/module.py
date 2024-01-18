@@ -84,9 +84,9 @@ def encoder_factory(algo_params: cfg.AlgoParams) -> nn.Module:
         observation: jax.Array, latent: jax.Array, *, skip: bool = False
     ) -> jax.Array:
         latent = MappingNetwork(
-            algo_params.mapping.hidden_size,
-            algo_params.mapping.activation_fn,
-            algo_params.mapping.n_layers,
+            algo_params.m_hidden_size,
+            algo_params.m_activation_fn,
+            algo_params.m_n_layers,
         )(latent, skip)
         latent = within_norm(latent, 1.0)
         return MultiplicativeVector(algo_params.hidden_size, algo_params.activation_fn)(

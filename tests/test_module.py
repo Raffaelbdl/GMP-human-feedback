@@ -1,8 +1,9 @@
+import flax.linen as nn
 import jax
 
 import rl.config as cfg
 
-from gmp.gmp import GmpParams, MappingParams
+from gmp.config import GmpParams
 from gmp.module import train_state_factory
 
 from tests.test_env import make_test_env
@@ -13,7 +14,9 @@ def test_train_state_factory():
     _, env_cfg = make_test_env()
     withoutmap_config = cfg.AlgoConfig(
         0,
-        GmpParams(latent_size=2, mapping=MappingParams(n_layers=0)),
+        GmpParams(
+            0.99, 0.95, 0.1, 0.01, 0.5, True, 2, 8, 0.1, 64, nn.tanh, 64, nn.tanh, 0
+        ),
         cfg.UpdateConfig(1e-3, False, 0.5, 256, 128, 3, False),
         cfg.TrainConfig(10**5, -1),
         env_cfg,
@@ -24,7 +27,9 @@ def test_train_state_factory():
 
     withmap_config = cfg.AlgoConfig(
         0,
-        GmpParams(latent_size=2),
+        GmpParams(
+            0.99, 0.95, 0.1, 0.01, 0.5, True, 2, 8, 0.1, 64, nn.tanh, 64, nn.tanh, 2
+        ),
         cfg.UpdateConfig(1e-3, False, 0.5, 256, 128, 3, False),
         cfg.TrainConfig(10**5, -1),
         env_cfg,
