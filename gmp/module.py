@@ -20,6 +20,15 @@ from rl.modules.policy_value import (
 from gmp.latent_space import within_norm
 
 
+def activation_fn(name: str) -> Callable:
+    if name == "tanh":
+        return nn.tanh
+    elif name == "relu":
+        return nn.relu
+    else:
+        raise NotImplementedError
+
+
 class MappingNetwork(nn.Module):
     """Mapping Network.
 
@@ -85,13 +94,13 @@ def encoder_factory(algo_params: cfg.AlgoParams) -> nn.Module:
     ) -> jax.Array:
         latent = MappingNetwork(
             algo_params.m_hidden_size,
-            algo_params.m_activation_fn,
+            activation_fn(algo_params.m_activation_fn),
             algo_params.m_n_layers,
         )(latent, skip)
         latent = within_norm(latent, 1.0)
-        return MultiplicativeVector(algo_params.hidden_size, algo_params.activation_fn)(
-            observation, latent
-        )
+        return MultiplicativeVector(
+            algo_params.hidden_size, activation_fn(algo_params.activation_fn)
+        )(observation, latent)
 
     return fn
 

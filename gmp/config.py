@@ -13,11 +13,11 @@ class GmpParams(PPOParams):
     latent_coef: float
 
     hidden_size: int
-    activation_fn: Callable
+    activation_fn: str
 
     # mapping
     m_hidden_size: int
-    m_activation_fn: Callable
+    m_activation_fn: str
     m_n_layers: int
 
 
