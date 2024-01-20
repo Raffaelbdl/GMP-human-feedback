@@ -56,6 +56,8 @@ def make_config(seed: int, env_cfg: cfg.EnvConfig) -> cfg.AlgoConfig:
             m_hidden_size=FLAGS.m_hidden_size,
             m_activation_fn=FLAGS.m_activation_fn,
             m_n_layers=FLAGS.m_n_layers,
+            architecture="StyleAdaIN",
+            n_blocks=2,
         ),
         cfg.UpdateConfig(
             learning_rate=0.0003,

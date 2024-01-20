@@ -1,5 +1,6 @@
 """Contains the FLAX modules."""
-from typing import Callable
+from enum import Enum
+from typing import Any, Callable
 
 import flax.linen as nn
 import jax
@@ -86,7 +87,14 @@ class MultiplicativeVector(nn.Module):
         return self.activation_fn(nn.Dense(self.hidden_size)(x + x_a_out))
 
 
-def encoder_factory(algo_params: cfg.AlgoParams) -> nn.Module:
+class Architecture(Enum):
+    Multiplicative = 0
+    StyleAdaIN = 1
+
+
+def encoder_factory(
+    algo_params: cfg.AlgoParams, architecture: Architecture
+) -> nn.Module:
     """Creates an encoder that takes observations and latents as input."""
 
     def fn(
@@ -98,11 +106,27 @@ def encoder_factory(algo_params: cfg.AlgoParams) -> nn.Module:
             algo_params.m_n_layers,
         )(latent, skip)
         latent = within_norm(latent, 1.0)
-        return MultiplicativeVector(
-            algo_params.hidden_size, activation_fn(algo_params.activation_fn)
-        )(observation, latent)
+
+        if architecture == Architecture.Multiplicative:
+            return MultiplicativeVector(
+                algo_params.hidden_size, activation_fn(algo_params.activation_fn)
+            )(observation, latent)
+        elif architecture == Architecture.StyleAdaIN:
+            return StyleEncoder(
+                algo_params.n_blocks,
+                algo_params.hidden_size,
+                activation_fn(algo_params.activation_fn),
+            )(observation, latent)
 
     return fn
+
+
+def architecture_fn(architecture: str) -> Architecture:
+    if architecture == Architecture.Multiplicative.name:
+        return Architecture.Multiplicative
+    if architecture == Architecture.StyleAdaIN.name:
+        return Architecture.StyleAdaIN
+    raise NotImplementedError
 
 
 def train_state_factory(
@@ -115,13 +139,16 @@ def train_state_factory(
 
         add_representer(dx.Categorical)
 
+    architecture = architecture_fn(config.algo_params.architecture)
+    encoder_type = encoder_factory(config.algo_params, architecture)
+
     def create_modules() -> PolicyValueModules:
         class Policy(nn.Module):
             @nn.compact
             def __call__(
                 self, observation: jax.Array, latent: jax.Array, *, skip: bool = False
             ):
-                x = encoder_factory(config.algo_params)(observation, latent, skip=skip)
+                x = encoder_type(observation, latent, skip=skip)
                 return PolicyCategorical(config.env_cfg.action_space.n)(x)
 
         class Value(nn.Module):
@@ -129,7 +156,7 @@ def train_state_factory(
             def __call__(
                 self, observation: jax.Array, latent: jax.Array, *, skip: bool = False
             ):
-                x = encoder_factory(config.algo_params)(observation, latent, skip=skip)
+                x = encoder_type(observation, latent, skip=skip)
                 return ValueOutput()(x)
 
         return PolicyValueModules(encoder=PassThrough(), policy=Policy(), value=Value())
@@ -161,3 +188,40 @@ def train_state_factory(
     return create_train_state_policy_value(
         modules, params, config, n_envs=config.env_cfg.n_envs * config.env_cfg.n_agents
     )
+
+
+def normalize_features(x: jax.Array) -> jax.Array:
+    mean = jnp.mean(x, axis=-1, keepdims=True)
+    stddev = jnp.std(x, axis=-1, keepdims=True)
+    return (x - mean) / (stddev + 1e-8)
+
+
+def adaIn(x: jax.Array, s: jax.Array, b: jax.Array) -> jax.Array:
+    return normalize_features(x) * s + b
+
+
+class StyleBlock(nn.Module):
+    hidden_size: int
+
+    @nn.compact
+    def __call__(self, obs_or_hiddens: jax.Array, latents: jax.Array) -> jax.Array:
+        hiddens = nn.Dense(self.hidden_size)(obs_or_hiddens)
+        # TODO explore adding noise
+        styles = nn.Dense(2 * self.hidden_size)(latents)
+        styles = jnp.reshape(styles, (-1, self.hidden_size, 2))
+
+        return adaIn(hiddens, styles[..., 0], styles[..., 1])
+
+
+class StyleEncoder(nn.Module):
+    n_blocks: int
+    hidden_size: int
+    activation_fn: Callable
+
+    @nn.compact
+    def __call__(self, observations: jax.Array, latents: jax.Array) -> jax.Array:
+        x = observations
+        for _ in range(self.n_blocks):
+            x = StyleBlock(self.hidden_size)(x, latents)
+            x = self.activation_fn(x)
+        return x

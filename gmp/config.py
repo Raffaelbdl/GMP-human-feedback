@@ -20,6 +20,10 @@ class GmpParams(PPOParams):
     m_activation_fn: str
     m_n_layers: int
 
+    architecture: str = "Multiplicative"
+    # style architecture
+    n_blocks: int = 0
+
 
 if __name__ == "__name__":
     p = GmpParams()
