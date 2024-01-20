@@ -173,7 +173,8 @@ def update_step_factory(train_state: TrainStatePolicyValue, config: AlgoConfig):
                 observations,
                 jnp.repeat(jnp.expand_dims(l, axis=0), len(observations), axis=0),
             )
-            dists.append(policy_apply({"params": params.params_policy}, *nh))
+            # apply diversity at after the mapping network
+            dists.append(policy_apply({"params": params.params_policy}, *nh, skip=True))
 
         divergence = []
         for i in range(0, config.algo_params.diversity_latent_samples - 1):
@@ -234,7 +235,12 @@ class GMP(Base):
     """Generative Model of Policies based on PPO"""
 
     def __init__(
-        self, config: AlgoConfig, *, run_name: str = None, tabulate: bool = False
+        self,
+        config: AlgoConfig,
+        *,
+        run_name: str = None,
+        tabulate: bool = False,
+        **kwargs
     ):
         super().__init__(
             config,
