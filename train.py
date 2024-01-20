@@ -1,8 +1,8 @@
 from absl import app, flags
-import gymnasium as gym
-import flax.linen as nn
 
 import rl.config as cfg
+
+from envs import make_env
 
 from gmp.config import GmpParams
 from gmp.gmp import GMP
@@ -14,7 +14,7 @@ flags.DEFINE_enum(
 )
 flags.DEFINE_string("run_name", None, "Name of the run.")
 # Diversity loss
-flags.DEFINE_integer("latent_size", 1, "Dimension of the latent space.")
+flags.DEFINE_integer("latent_size", 2, "Dimension of the latent space.")
 flags.DEFINE_integer(
     "diversity_latent_samples", 8, "Number of samples for the diversity loss term."
 )
@@ -36,17 +36,6 @@ flags.DEFINE_enum(
 )
 flags.DEFINE_integer("m_n_layers", 2, "Number of layers inside the mapping network.")
 FLAGS = flags.FLAGS
-
-
-def make_env(task: str, seed: int) -> tuple[gym.Env, cfg.EnvConfig]:
-    if task == "cartpole":
-        from envs.cartpole import make_cartpole
-
-        return make_cartpole(seed=seed)
-    elif task == "ring":
-        raise NotImplementedError
-    else:
-        raise NotImplementedError
 
 
 def make_config(seed: int, env_cfg: cfg.EnvConfig) -> cfg.AlgoConfig:
@@ -74,7 +63,7 @@ def make_config(seed: int, env_cfg: cfg.EnvConfig) -> cfg.AlgoConfig:
             max_grad_norm=0.5,
             max_buffer_size=256,
             batch_size=128,
-            n_epochs=5,
+            n_epochs=1,
             shared_encoder=False,
         ),
         cfg.TrainConfig(n_env_steps=10**5, save_frequency=10**5),
