@@ -2,6 +2,7 @@ from typing import Any, SupportsFloat
 
 import gymnasium as gym
 from gymnasium.core import Env
+from gymnasium.vector import AsyncVectorEnv
 from minigrid.core.mission import MissionSpace
 from minigrid.core.grid import Grid
 from minigrid.core.world_object import Goal, Wall
@@ -30,6 +31,8 @@ class Ring(MiniGridEnv):
             max_steps=256,
             **kwargs,
         )
+
+        self.action_space = gym.spaces.Discrete(3)
 
     @staticmethod
     def _gen_mission():
@@ -74,6 +77,18 @@ def make_ring(seed: int) -> tuple[Env, cfg.EnvConfig]:
     return env, env_cfg
 
 
+def make_vec_ring(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
+    def env_fn():
+        env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
+        env.reset(seed=seed)
+        return env
+
+    env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
+    env_cfg = cfg.EnvConfig("Ring", env.observation_space, env.action_space, n_envs, 1)
+    del env
+    return AsyncVectorEnv([env_fn for _ in range(n_envs)]), env_cfg
+
+
 class RingClockWise(gym.Wrapper):
     def __init__(self, env: Env):
         super().__init__(env)
@@ -84,9 +99,10 @@ class RingClockWise(gym.Wrapper):
     ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         obs, reward, done, trunc, info = super().step(action)
         if reward > 0:
-            if self.prev_pos == (self.env.width - 3, 1):
+            if self.prev_pos == (self.env.unwrapped.width - 3, 1):
                 self.clockwise = True
-        self.prev_pos = self.env.agent_pos
+        self.prev_pos = self.env.unwrapped.agent_pos
+        info["clockwise"] = self.clockwise
         return obs, reward, done, trunc, info
 
     def reset(
@@ -110,9 +126,10 @@ class RingAntiClockWise(gym.Wrapper):
     ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
         obs, reward, done, trunc, info = super().step(action)
         if reward > 0:
-            if self.prev_pos == (self.env.width - 2, 2):
+            if self.prev_pos == (self.env.unwrapped.width - 2, 2):
                 self.anticlockwise = True
-        self.prev_pos = self.env.agent_pos
+        self.prev_pos = self.env.unwrapped.agent_pos
+        info["anticlockwise"] = self.anticlockwise
         return obs, reward, done, trunc, info
 
     def reset(
@@ -132,3 +149,16 @@ def make_task_ring(seed: int, render_mode: str | None = None) -> tuple[Env, list
 
     env = RingAntiClockWise(RingClockWise(env))
     return env, ["clockwise", "anticlockwise"]
+
+
+def make_vec_task_ring(seed: int, n_envs: int) -> tuple[Env, list[str]]:
+    def env_fn():
+        env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
+        env.reset(seed=seed)
+        env = RingAntiClockWise(RingClockWise(env))
+        return env
+
+    return AsyncVectorEnv([env_fn for _ in range(n_envs)]), [
+        "clockwise",
+        "anticlockwise",
+    ]

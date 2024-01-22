@@ -2,7 +2,8 @@ from typing import Any, SupportsFloat
 
 import gymnasium as gym
 from gymnasium.core import Env
-import numpy as np
+from gymnasium.vector import AsyncVectorEnv
+from gymnasium.envs.classic_control.cartpole import CartPoleEnv
 
 import rl.config as cfg
 
@@ -17,11 +18,25 @@ def make_cartpole(seed: int) -> tuple[Env, cfg.EnvConfig]:
     return env, env_cfg
 
 
+def make_vec_cartpole(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
+    def env_fn():
+        env = gym.make("CartPole-v1")
+        env.reset(seed=seed)
+        return env
+
+    env = gym.make("CartPole-v1")
+    env_cfg = cfg.EnvConfig(
+        "CartPole-v1", env.observation_space, env.action_space, n_envs, 1
+    )
+    del env
+    return AsyncVectorEnv([env_fn for _ in range(n_envs)]), env_cfg
+
+
 class CartPoleHighReturn(gym.Wrapper):
-    def __init__(self, env: Env):
+    def __init__(self, env: Env, threshold: float = 495):
         super().__init__(env)
         self.reset_task()
-        self.episode_return_threshold = 495
+        self.episode_return_threshold = threshold
 
     def step(
         self, action: Any
@@ -30,6 +45,7 @@ class CartPoleHighReturn(gym.Wrapper):
 
         self.episode_return += reward
         self.is_high_return = self.episode_return >= self.episode_return_threshold
+        info["is_high_return"] = self.is_high_return
 
         return obs, reward, done, trunc, info
 
@@ -52,9 +68,10 @@ class CartPoleReachLeft(gym.Wrapper):
     def step(
         self, action: Any
     ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
-        output = super().step(action)
+        obs, rew, don, tru, inf = super().step(action)
         self.is_left = self.unwrapped.state[0] < -self.unwrapped.x_threshold
-        return output
+        inf["is_left"] = self.is_left
+        return obs, rew, don, tru, inf
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
@@ -74,9 +91,10 @@ class CartPoleReachRight(gym.Wrapper):
     def step(
         self, action: Any
     ) -> tuple[Any, SupportsFloat, bool, bool, dict[str, Any]]:
-        output = super().step(action)
+        obs, rew, don, tru, inf = super().step(action)
         self.is_right = self.unwrapped.state[0] > self.unwrapped.x_threshold
-        return output
+        inf["is_right"] = self.is_right
+        return obs, rew, don, tru, inf
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
@@ -85,7 +103,8 @@ class CartPoleReachRight(gym.Wrapper):
         return super().reset(seed=seed, options=options)
 
     def reset_task(self):
-        self.is_right = False
+        # self.is_right = False
+        ...
 
 
 def make_task_cartpole(
@@ -95,3 +114,17 @@ def make_task_cartpole(
     env.reset(seed=seed)
     env = CartPoleReachRight(CartPoleReachLeft(CartPoleHighReturn(env)))
     return env, ["is_high_return", "is_left", "is_right"]
+
+
+def make_vec_task_cartpole(seed: int, n_envs: int) -> tuple[Env, list[str]]:
+    def env_fn():
+        env = gym.make("CartPole-v1")
+        env.reset(seed=seed)
+        env = CartPoleReachRight(CartPoleReachLeft(CartPoleHighReturn(env, 495)))
+        return env
+
+    return AsyncVectorEnv([env_fn for _ in range(n_envs)]), [
+        "is_high_return",
+        "is_left",
+        "is_right",
+    ]
