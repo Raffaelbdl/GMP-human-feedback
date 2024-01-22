@@ -5,4 +5,5 @@ git+https://github.com/Raffaelbdl/distrax_flax
 matplotlib
 minigrid
 opencv-python
+scikit-learn
 tqdm
