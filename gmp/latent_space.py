@@ -13,7 +13,11 @@ def within_norm(x: jax.Array, norm: float) -> jax.Array:
 
 
 def random_ball_jax(
-    key: jax.Array, n_samples: int, dimension: int = 2, radius: float = 1.0
+    key: jax.Array,
+    n_samples: int,
+    dimension: int = 2,
+    radius: float = 1.0,
+    min_radius: float = 0.0,
 ) -> jax.Array:
     """Generates an Array of points within a ball of arbitrary dimension and radius."""
     k1, k2 = jax.random.split(key, 2)
@@ -21,16 +25,24 @@ def random_ball_jax(
     random_directions = jax.random.normal(k1, (dimension, n_samples))
     random_directions /= jnp.linalg.norm(random_directions, axis=0)
 
-    random_radii = jax.random.uniform(k2, (n_samples,)) ** (1 / dimension)
+    random_radii = jax.random.uniform(
+        k2, (n_samples,), minval=(min_radius / radius) ** dimension
+    ) ** (1 / dimension)
     return radius * (random_directions * random_radii).T
 
 
 def random_ball_numpy(
-    rng: np.random.Generator, n_samples: int, dimension: int = 2, radius: float = 1.0
+    rng: np.random.Generator,
+    n_samples: int,
+    dimension: int = 2,
+    radius: float = 1.0,
+    min_radius: float = 0.0,
 ) -> np.ndarray:
     """Generates an Array of points within a ball of arbitrary dimension and radius."""
     random_directions = rng.normal(size=(dimension, n_samples))
     random_directions /= np.linalg.norm(random_directions, axis=0)
 
-    random_radii = rng.uniform(size=(n_samples,)) ** (1 / dimension)
+    random_radii = rng.uniform(
+        low=(min_radius / radius) ** dimension, size=(n_samples,)
+    ) ** (1 / dimension)
     return radius * (random_directions * random_radii).T
