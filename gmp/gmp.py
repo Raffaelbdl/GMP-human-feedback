@@ -173,8 +173,9 @@ def update_step_factory(train_state: TrainStatePolicyValue, config: AlgoConfig):
                 observations,
                 jnp.repeat(jnp.expand_dims(l, axis=0), len(observations), axis=0),
             )
-            # apply diversity at after the mapping network
-            dists.append(policy_apply({"params": params.params_policy}, *nh, skip=True))
+            dists.append(
+                policy_apply({"params": params.params_policy}, *nh, skip=False)
+            )
 
         divergence = []
         for i in range(0, config.algo_params.diversity_latent_samples - 1):
@@ -277,7 +278,7 @@ class GMP(Base):
         action, log_prob = self.skip_explore_fn(
             self.state.params, self.nextkey(), observation
         )
-        return np.array(action)[0], np.array(log_prob)
+        return np.array(action), np.array(log_prob)
 
     def should_update(self, step: int, buffer: OnPolicyBuffer) -> bool:
         return len(buffer) >= self.config.update_cfg.max_buffer_size
@@ -299,7 +300,7 @@ class GMP(Base):
         sample = buffer.sample(self.config.update_cfg.batch_size)
         self.state, info = fn(self.state, self.nextkey(), sample)
 
-        self.latent = self.nextlatent()
+        # self.latent = self.nextlatent()
 
         return info
 
