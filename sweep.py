@@ -20,8 +20,7 @@ from test_vecenv import rollout_vec_env
 def make_algo_config_env(seed: int, config: dict) -> cfg.AlgoConfig:
     envs, env_cfg = make_vec_env(config["task"], seed + 1, 8)
 
-    # n_env_steps = 500_000 // 8 if config["task"] == "cartpole" else 100_000 // 8
-    n_env_steps = 1000
+    n_env_steps = 500_000 // 8 if config["task"] == "cartpole" else 100_000 // 8
 
     return (
         cfg.AlgoConfig(
@@ -75,8 +74,8 @@ def init_train_eval(seed: int, config: dict):
     del envs
 
     envs, tasks = make_vec_task_env(config["task"], seed + 2, 100)
-    # points = np.load(f"./points_{dimension}d.npy")
-    points = random_ball_numpy(np.random.default_rng(0), 100, dimension)
+    points = np.load(f"./points_{dimension}d.npy")
+    # points = random_ball_numpy(np.random.default_rng(0), 100, dimension)
     successes = rollout_vec_env(seed + 3, gmp, envs, points, tasks)
 
     np.savez(os.path.join("./results", gmp.run_name, "successes.npz"), **successes)
