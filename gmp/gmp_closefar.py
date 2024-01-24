@@ -160,28 +160,56 @@ def update_step_factory(train_state: TrainStatePolicyValue, config: AlgoConfig):
         )
 
         # diversity
-        sample_latents = random_ball_jax(
-            key,
+        k1, k2 = jax.random.split(key, 2)
+        close_latents = random_ball_jax(
+            k1,
             config.algo_params.diversity_latent_samples,
             config.algo_params.latent_size,
+            radius=0.1,
         )  # n, l
 
-        dists = []
-        for l in sample_latents:
+        close_dists = []
+        for l in close_latents:
             nh = encoder_apply(
                 {"params": params.params_encoder},
                 observations,
                 jnp.repeat(jnp.expand_dims(l, axis=0), len(observations), axis=0),
             )
-            dists.append(
-                policy_apply({"params": params.params_policy}, *nh, skip=False)
+            close_dists.append(
+                policy_apply({"params": params.params_policy}, *nh, skip=True)
+            )
+
+        convergence = []
+        for i in range(0, config.algo_params.diversity_latent_samples - 1):
+            for j in range(i + 1, config.algo_params.diversity_latent_samples):
+                dist_i, dist_j = dists[i], dists[j]
+                convergence.append(jnp.mean(dist_i.kl_divergence(dist_j)))
+        loss_convergence = jnp.mean(jnp.array(convergence))
+
+        far_latents = random_ball_jax(
+            k2,
+            config.algo_params.diversity_latent_samples,
+            config.algo_params.latent_size,
+            radius=1.0,
+            min_radius=0.2,
+        )
+
+        far_dists = []
+        for l in far_latents:
+            nh = encoder_apply(
+                {"params": params.params_encoder},
+                observations,
+                jnp.repeat(jnp.expand_dims(l, axis=0), len(observations), axis=0),
+            )
+            far_dists.append(
+                policy_apply({"params": params.params_policy}, *nh, skip=True)
             )
 
         divergence = []
         for i in range(0, config.algo_params.diversity_latent_samples - 1):
             for j in range(i + 1, config.algo_params.diversity_latent_samples):
-                dist_i, dist_j = dists[i], dists[j]
-                divergence.append(jnp.mean(jnp.exp(-dist_i.kl_divergence(dist_j))))
+                dist_i, dist_j = far_dists[i], far_dists[j]
+                divergence.append(jnp.mean(-dist_i.kl_divergence(dist_j)))
         loss_divergence = jnp.mean(jnp.array(divergence))
 
         # value
@@ -191,7 +219,7 @@ def update_step_factory(train_state: TrainStatePolicyValue, config: AlgoConfig):
         )
 
         loss = loss_policy + config.algo_params.value_coef * loss_value
-        loss += config.algo_params.latent_coef * loss_divergence
+        loss += config.algo_params.latent_coef * (loss_divergence + loss_convergence)
         info = info_policy | info_value
         info["total_loss"] = loss
 
