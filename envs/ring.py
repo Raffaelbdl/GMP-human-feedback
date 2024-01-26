@@ -14,6 +14,9 @@ import rl.config as cfg
 
 
 class Ring(MiniGridEnv):
+    """Custom MiniGrid environment where the agent
+    has to go around an obstacle to reach the goal."""
+
     def __init__(
         self,
         size=6,
@@ -56,6 +59,8 @@ class Ring(MiniGridEnv):
 
 
 class FlattenImage(ObservationWrapper):
+    """Flattens the visual observation space."""
+
     def __init__(self, env: Env):
         super().__init__(env)
         self.observation_space = gym.spaces.Box(
@@ -70,6 +75,7 @@ class FlattenImage(ObservationWrapper):
 
 
 def make_ring(seed: int) -> tuple[Env, cfg.EnvConfig]:
+    """Creates a ring env and its config."""
     env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
     env.reset(seed=seed)
 
@@ -78,6 +84,8 @@ def make_ring(seed: int) -> tuple[Env, cfg.EnvConfig]:
 
 
 def make_vec_ring(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
+    """Creates a ring vector env and its config."""
+
     def env_fn():
         env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
         env.reset(seed=seed)
@@ -90,6 +98,8 @@ def make_vec_ring(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
 
 
 class RingClockWise(gym.Wrapper):
+    """Wrapper to check if the agent reaches the goal by going clockwise."""
+
     def __init__(self, env: Env):
         super().__init__(env)
         self.reset_task()
@@ -117,6 +127,8 @@ class RingClockWise(gym.Wrapper):
 
 
 class RingAntiClockWise(gym.Wrapper):
+    """Wrapper to check if the agent reaches the goal by going anticlockwise."""
+
     def __init__(self, env: Env):
         super().__init__(env)
         self.reset_task()
@@ -144,6 +156,7 @@ class RingAntiClockWise(gym.Wrapper):
 
 
 def make_task_ring(seed: int, render_mode: str | None = None) -> tuple[Env, list[str]]:
+    """Creates a ring env with its alternative tasks wrappers."""
     env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring(render_mode=render_mode))))
     env.reset(seed=seed)
 
@@ -152,6 +165,8 @@ def make_task_ring(seed: int, render_mode: str | None = None) -> tuple[Env, list
 
 
 def make_vec_task_ring(seed: int, n_envs: int) -> tuple[Env, list[str]]:
+    """Creates a ring vector env with its alternative tasks wrappers."""
+
     def env_fn():
         env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
         env.reset(seed=seed)
