@@ -29,6 +29,10 @@ To optimize in the latent space with human feedback, run the `humanfeedback.py` 
 
 At the end, a `pathhf.npy` should be created, as well as a plot representing the path inside the latent space.
 
+![humanfeedback](./resources/humanfeedback.gif)
+
 ### Interpolation between behaviors
 
 To linearly interpolate between behaviors, run the `interpolation.py` script. This will directly fetch the `successes.npz` file created after training the agent, calculate the barycenters of each task in the latent space and start the visualization. You can move the slider to move between behaviors.
+
+![interpolation](./resources/interpolation.gif)
