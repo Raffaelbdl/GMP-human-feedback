@@ -1,6 +1,6 @@
 """Contains the FLAX modules."""
 from enum import Enum
-from typing import Any, Callable
+from typing import Callable
 
 import flax.linen as nn
 import jax
