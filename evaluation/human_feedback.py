@@ -1,14 +1,12 @@
 from enum import Enum
 import time
 
-
 import cv2
 import gymnasium as gym
 import numpy as np
 import pygame
 
-from exploration.human_feedback import HumanFeedback
-
+from gmp.latent_space import within_norm
 from gmp.gmp import GMP
 
 FPS = 60
@@ -20,6 +18,69 @@ MID_OFFSET = 2
 class State(Enum):
     SELECT = 0
     ROLLOUT = 1
+
+
+class HumanFeedback:
+    """Human Feedback class.
+
+    Holds information about the temperature coefficient,
+        and handles sampling new latent vectors.
+
+    Attributes:
+        alpha: a float
+        decrease_coef: a float that regulate alpha decrease
+        increase_coef: a float that regulate alpha increase
+    """
+
+    def __init__(
+        self, seed: int, *, decrease_coef: float = 0.8, increase_coef: float = 1.1
+    ) -> None:
+        """Instantiates a HumanFeedback instance.
+
+        Args:
+            seed: an int for reproducibility.
+        """
+        self.rng = np.random.default_rng(seed)
+        self.alpha = 0.1
+        self.decrease_coef = decrease_coef
+        self.increase_coef = increase_coef
+
+    def decrease_alpha(self) -> None:
+        self.alpha *= self.decrease_coef
+
+    def increase_alpha(self) -> None:
+        self.alpha *= self.increase_coef
+
+    def next_latents(self, n: int, prev_latent: np.ndarray) -> np.ndarray:
+        latents = prev_latent
+        latents += self.alpha * self.rng.standard_normal((n, prev_latent.shape[-1]))
+        latents = within_norm(latents, 1.0)
+        return latents
+
+    def update_alpha(self, selected: bool) -> None:
+        """Increases or decreases alpha based on selection.
+
+        If new latent selected, decrease alpha.
+        If previous latent kept, increase alpha.
+        """
+        if selected:
+            self.decrease_alpha()
+        else:
+            self.increase_alpha()
+
+
+def create_pygame_screen(env: gym.Env) -> pygame.Surface:
+    """Instantiates a pygame screen for the human-feedback interface."""
+    pygame.init()
+    pygame.font.init()
+
+    pygame.display.set_caption("Human Adaptable Policies")
+    env_shape = env.render().shape
+    screen = pygame.display.set_mode(
+        (2 * env_shape[1] + MID_OFFSET, env_shape[0] + TOP_OFFSET + BOT_OFFSET)
+    )
+
+    return screen
 
 
 def surface_title(title: str) -> pygame.Surface:
@@ -48,7 +109,9 @@ def rollout(
     prev_latent: np.ndarray,
     screen: pygame.Surface,
     human_feedback: HumanFeedback,
-):
+) -> tuple[np.ndarray, np.ndarray]:
+    """Performs one rollout in two environments and
+    draws the resulting frames."""
     # hide bottom text
     size = screen.get_size()
     screen.blit(
@@ -67,8 +130,13 @@ def rollout(
     def step_env(
         env: gym.Env, observation: np.ndarray, latent: np.ndarray, agent: GMP
     ) -> tuple[np.ndarray, bool, np.ndarray]:
-        action, _ = agent.skip_explore({"observation": observation, "latent": latent})
-        observation, _, done, trunc, _ = env.step(action)
+        action, _ = agent.skip_explore(
+            {
+                "observation": np.expand_dims(observation, axis=0),
+                "latent": np.expand_dims(latent, axis=0),
+            }
+        )
+        observation, _, done, trunc, _ = env.step(action[0])
         frame = env.render()
         terminated = done or trunc
         return frame, terminated, observation
@@ -98,7 +166,22 @@ def loop(
     agent: GMP,
     task: str,
     human_feedback: HumanFeedback,
-):
+) -> list[np.ndarray]:
+    """Launches the human feedback interface.
+
+    Args:
+        screen: a pygame Surface.
+        prev_latent: the starting latent as an Array.
+        env0: a gymnasium environment.
+        env1: a gymnasium environment.
+        agent: a GMP agent.
+        task: the alternative task the human should help
+            optimize as a string.
+        human_feedback: a HumanFeedback instance.
+
+    Returns:
+        The path of latent vectors selected during the optimization.
+    """
     state = State.ROLLOUT
 
     title = surface_title(task)
@@ -122,27 +205,17 @@ def loop(
                     if event.key == pygame.K_LEFT:
                         prev_latent = l0
                         latent_path.append(l0)
+                        human_feedback.decrease_alpha()
                         state = State.ROLLOUT
                     elif event.key == pygame.K_RIGHT:
                         prev_latent = l1
                         latent_path.append(l1)
+                        human_feedback.decrease_alpha()
                         state = State.ROLLOUT
                     elif event.key == pygame.K_DOWN:
                         state = State.ROLLOUT
+                        human_feedback.increase_alpha()
 
         pygame.display.update()
 
     return latent_path
-
-
-def create_pygame_screen(env: gym.Env) -> pygame.Surface:
-    pygame.init()
-    pygame.font.init()
-
-    pygame.display.set_caption("Human Adaptable Policies")
-    env_shape = env.render().shape
-    screen = pygame.display.set_mode(
-        (2 * env_shape[1] + MID_OFFSET, env_shape[0] + TOP_OFFSET + BOT_OFFSET)
-    )
-
-    return screen
