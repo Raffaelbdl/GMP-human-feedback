@@ -3,12 +3,12 @@ from typing import Any, SupportsFloat
 import gymnasium as gym
 from gymnasium.core import Env
 from gymnasium.vector import AsyncVectorEnv
-from gymnasium.envs.classic_control.cartpole import CartPoleEnv
 
 import rl.config as cfg
 
 
 def make_cartpole(seed: int) -> tuple[Env, cfg.EnvConfig]:
+    """Creates a cartpole env and its config."""
     env = gym.make("CartPole-v1")
     env.reset(seed=seed)
 
@@ -19,6 +19,8 @@ def make_cartpole(seed: int) -> tuple[Env, cfg.EnvConfig]:
 
 
 def make_vec_cartpole(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
+    """Creates a cartpole vector env and its config."""
+
     def env_fn():
         env = gym.make("CartPole-v1")
         env.reset(seed=seed)
@@ -33,6 +35,8 @@ def make_vec_cartpole(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
 
 
 class CartPoleHighReturn(gym.Wrapper):
+    """Wrapper to check if the agent achieves a high return."""
+
     def __init__(self, env: Env, threshold: float = 495):
         super().__init__(env)
         self.reset_task()
@@ -61,6 +65,8 @@ class CartPoleHighReturn(gym.Wrapper):
 
 
 class CartPoleReachLeft(gym.Wrapper):
+    """Wrapper to check if the agent reaches the left border."""
+
     def __init__(self, env: Env):
         super().__init__(env)
         self.reset_task()
@@ -84,6 +90,8 @@ class CartPoleReachLeft(gym.Wrapper):
 
 
 class CartPoleReachRight(gym.Wrapper):
+    """Wrapper to check if the agent reaches the right border."""
+
     def __init__(self, env: Env):
         super().__init__(env)
         self.reset_task()
@@ -103,13 +111,13 @@ class CartPoleReachRight(gym.Wrapper):
         return super().reset(seed=seed, options=options)
 
     def reset_task(self):
-        # self.is_right = False
-        ...
+        self.is_right = False
 
 
 def make_task_cartpole(
     seed: int, render_mode: str | None = None
 ) -> tuple[Env, list[str]]:
+    """Creates a cartpole env with its alternative tasks wrappers."""
     env = gym.make("CartPole-v1", render_mode=render_mode)
     env.reset(seed=seed)
     env = CartPoleReachRight(CartPoleReachLeft(CartPoleHighReturn(env)))
@@ -117,6 +125,8 @@ def make_task_cartpole(
 
 
 def make_vec_task_cartpole(seed: int, n_envs: int) -> tuple[Env, list[str]]:
+    """Creates a cartpole vector env with its alternative tasks wrappers."""
+
     def env_fn():
         env = gym.make("CartPole-v1")
         env.reset(seed=seed)
