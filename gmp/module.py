@@ -21,17 +21,34 @@ from rl.modules.policy_value import (
 from gmp.latent_space import within_norm
 
 
+def adaIn(x: jax.Array, s: jax.Array, b: jax.Array) -> jax.Array:
+    """Standardizes features and replaces mean and stddev."""
+    return jax.nn.standardize(x, axis=-1) * s + b
+
+
 def activation_fn(name: str) -> Callable:
-    if name == "tanh":
-        return nn.tanh
-    elif name == "relu":
-        return nn.relu
-    else:
-        raise NotImplementedError
+    """Returns the activation function by name."""
+    if name in ["tanh", "relu"]:
+        return getattr(nn, name)
+    raise NotImplementedError(f"{name} is not a valid activation function name.")
+
+
+class Architecture(Enum):
+    Multiplicative = 0
+    Style = 1
+
+
+def architecture_fn(architecture: str) -> Architecture:
+    """Returns the Architecture by name."""
+    architectures = {a.name.lower(): a for a in Architecture}
+    try:
+        return architectures[architecture.lower()]
+    except KeyError:
+        raise
 
 
 class MappingNetwork(nn.Module):
-    """Mapping Network.
+    """Mapping Network of the latent distribution Z.
 
     Attributes:
         hidden_size: int
@@ -45,17 +62,29 @@ class MappingNetwork(nn.Module):
 
     @nn.compact
     def __call__(self, latent: jax.Array, skip: bool = False) -> jax.Array:
-        if not skip:
+        """Maps the latent distribution Z to a learned distribution W.
+
+        Args:
+            latent: an Array from the latent distribution Z.
+            skip: a boolean that determines if we should pass the latent
+                through the mapping network.
+
+        Returns:
+            An Array from the learned distribution W.
+        """
+
+        if not skip and self.n_layers > 0:
             latent_size = latent.shape[-1]
-            if self.n_layers > 0:
-                for _ in range(self.n_layers):
-                    latent = self.activation_fn(nn.Dense(self.hidden_size)(latent))
-                latent = nn.Dense(latent_size)(latent)
+            for _ in range(self.n_layers):
+                latent = nn.Dense(self.hidden_size)(latent)
+                latent = self.activation_fn(latent)
+            latent = nn.Dense(latent_size)(latent)
         return latent
 
 
-class MultiplicativeVector(nn.Module):
-    """Multiplicative Model, http://arxiv.org/abs/2107.07506
+class MultiplicativeGenerator(nn.Module):
+    """MultiplicativeGenerator model from ADAP.
+    Paper: http://arxiv.org/abs/2107.07506
 
     Attributes:
         hidden_size: int
@@ -66,30 +95,84 @@ class MultiplicativeVector(nn.Module):
     activation_fn: Callable
 
     @nn.compact
-    def __call__(self, observation: jax.Array, latent: jax.Array) -> jax.Array:
-        """Combines an observation and a latent vector.
+    def __call__(self, observations: jax.Array, latents: jax.Array) -> jax.Array:
+        """Generates a policy or value by conditioning on a latent vector.
 
         Args:
-            observation: An array of shape [..., n] where n is the size
+            observations: an Array of shape [..., n] where n is the size
                 of the observation.
-            latent: An Array of shape [..., D] where D is the latent size.
+            latents: an Array of shape [..., K] where D is the latent size.
         Returns:
             An Array of shape [..., H] where H is the hidden size.
         """
-        x = self.activation_fn(nn.Dense(self.hidden_size)(observation))
+        x = self.activation_fn(nn.Dense(self.hidden_size)(observations))
 
-        x_a = self.activation_fn(nn.Dense(self.hidden_size * latent.shape[-1])(x))
-        x_a = jnp.reshape(x_a, (-1, self.hidden_size, latent.shape[-1]))
+        x_a = self.activation_fn(nn.Dense(self.hidden_size * latents.shape[-1])(x))
+        x_a = jnp.reshape(x_a, (-1, self.hidden_size, latents.shape[-1]))
 
-        latent = jnp.expand_dims(latent, axis=-1)
-        x_a_out = jnp.matmul(x_a, latent).squeeze(axis=-1)
+        latents = jnp.expand_dims(latents, axis=-1)
+        x_a_out = jnp.matmul(x_a, latents).squeeze(axis=-1)
 
         return self.activation_fn(nn.Dense(self.hidden_size)(x + x_a_out))
 
 
-class Architecture(Enum):
-    Multiplicative = 0
-    StyleAdaIN = 1
+class StyleBlock(nn.Module):
+    """Block component for the Style architecture.
+
+    Attributes:
+        hidden_size: int
+    """
+
+    hidden_size: int
+
+    @nn.compact
+    def __call__(self, obs_or_hiddens: jax.Array, latents: jax.Array) -> jax.Array:
+        """Computes one pass through a block of the Style architecture by
+            introducing the latent via an affine transform.
+
+        Args:
+            obs_or_hiddens: an Array of shape [..., N] where N is the size
+                of the observation or the hidden size
+            latents: an Array of shape [..., K] where D is the latent size.
+        Returns:
+            An Array of shape [..., H] where H is the hidden size.
+        """
+        hiddens = nn.Dense(self.hidden_size)(obs_or_hiddens)
+        styles = nn.Dense(2 * self.hidden_size)(latents)
+        styles = jnp.reshape(styles, (-1, self.hidden_size, 2))
+
+        return adaIn(hiddens, styles[..., 0], styles[..., 1])
+
+
+class StyleGenerator(nn.Module):
+    """StyleGenerator model.
+
+    Attributes:
+        n_blocks: int
+        hidden_size: int
+        activation_fn: Callable
+    """
+
+    n_blocks: int
+    hidden_size: int
+    activation_fn: Callable
+
+    @nn.compact
+    def __call__(self, observations: jax.Array, latents: jax.Array) -> jax.Array:
+        """Generates a policy or value by conditioning on a latent vector.
+
+        Args:
+            observations: an Array of shape [..., n] where n is the size
+                of the observation.
+            latents: an Array of shape [..., K] where D is the latent size.
+        Returns:
+            An Array of shape [..., H] where H is the hidden size.
+        """
+        x = observations
+        for _ in range(self.n_blocks):
+            x = StyleBlock(self.hidden_size)(x, latents)
+            x = self.activation_fn(x)
+        return x
 
 
 def encoder_factory(
@@ -108,25 +191,17 @@ def encoder_factory(
         latent = within_norm(latent, 1.0)
 
         if architecture == Architecture.Multiplicative:
-            return MultiplicativeVector(
+            return MultiplicativeGenerator(
                 algo_params.hidden_size, activation_fn(algo_params.activation_fn)
             )(observation, latent)
-        elif architecture == Architecture.StyleAdaIN:
-            return StyleEncoder(
+        elif architecture == Architecture.Style:
+            return StyleGenerator(
                 algo_params.n_blocks,
                 algo_params.hidden_size,
                 activation_fn(algo_params.activation_fn),
             )(observation, latent)
 
     return fn
-
-
-def architecture_fn(architecture: str) -> Architecture:
-    if architecture == Architecture.Multiplicative.name:
-        return Architecture.Multiplicative
-    if architecture == Architecture.StyleAdaIN.name:
-        return Architecture.StyleAdaIN
-    raise NotImplementedError
 
 
 def train_state_factory(
@@ -188,40 +263,3 @@ def train_state_factory(
     return create_train_state_policy_value(
         modules, params, config, n_envs=config.env_cfg.n_envs * config.env_cfg.n_agents
     )
-
-
-def normalize_features(x: jax.Array) -> jax.Array:
-    mean = jnp.mean(x, axis=-1, keepdims=True)
-    stddev = jnp.std(x, axis=-1, keepdims=True)
-    return (x - mean) / (stddev + 1e-8)
-
-
-def adaIn(x: jax.Array, s: jax.Array, b: jax.Array) -> jax.Array:
-    return normalize_features(x) * s + b
-
-
-class StyleBlock(nn.Module):
-    hidden_size: int
-
-    @nn.compact
-    def __call__(self, obs_or_hiddens: jax.Array, latents: jax.Array) -> jax.Array:
-        hiddens = nn.Dense(self.hidden_size)(obs_or_hiddens)
-        # TODO explore adding noise
-        styles = nn.Dense(2 * self.hidden_size)(latents)
-        styles = jnp.reshape(styles, (-1, self.hidden_size, 2))
-
-        return adaIn(hiddens, styles[..., 0], styles[..., 1])
-
-
-class StyleEncoder(nn.Module):
-    n_blocks: int
-    hidden_size: int
-    activation_fn: Callable
-
-    @nn.compact
-    def __call__(self, observations: jax.Array, latents: jax.Array) -> jax.Array:
-        x = observations
-        for _ in range(self.n_blocks):
-            x = StyleBlock(self.hidden_size)(x, latents)
-            x = self.activation_fn(x)
-        return x
