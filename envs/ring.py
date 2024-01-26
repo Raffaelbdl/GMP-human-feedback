@@ -79,7 +79,7 @@ def make_ring(seed: int) -> tuple[Env, cfg.EnvConfig]:
     env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
     env.reset(seed=seed)
 
-    env_cfg = cfg.EnvConfig("Ring", env.observation_space, env.action_space, 1, 1)
+    env_cfg = cfg.EnvConfig("ring", env.observation_space, env.action_space, 1, 1)
     return env, env_cfg
 
 
@@ -92,7 +92,7 @@ def make_vec_ring(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
         return env
 
     env = FlattenImage(ImgObsWrapper(FullyObsWrapper(Ring())))
-    env_cfg = cfg.EnvConfig("Ring", env.observation_space, env.action_space, n_envs, 1)
+    env_cfg = cfg.EnvConfig("ring", env.observation_space, env.action_space, n_envs, 1)
     del env
     return AsyncVectorEnv([env_fn for _ in range(n_envs)]), env_cfg
 

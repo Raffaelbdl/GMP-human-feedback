@@ -12,9 +12,7 @@ def make_cartpole(seed: int) -> tuple[Env, cfg.EnvConfig]:
     env = gym.make("CartPole-v1")
     env.reset(seed=seed)
 
-    env_cfg = cfg.EnvConfig(
-        "CartPole-v1", env.observation_space, env.action_space, 1, 1
-    )
+    env_cfg = cfg.EnvConfig("cartpole", env.observation_space, env.action_space, 1, 1)
     return env, env_cfg
 
 
@@ -28,7 +26,7 @@ def make_vec_cartpole(seed: int, n_envs: int) -> tuple[Env, cfg.EnvConfig]:
 
     env = gym.make("CartPole-v1")
     env_cfg = cfg.EnvConfig(
-        "CartPole-v1", env.observation_space, env.action_space, n_envs, 1
+        "cartpole", env.observation_space, env.action_space, n_envs, 1
     )
     del env
     return AsyncVectorEnv([env_fn for _ in range(n_envs)]), env_cfg
