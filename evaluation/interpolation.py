@@ -58,6 +58,8 @@ def create_pygame_screen(env: gym.Env) -> pygame.Surface:
         shape[0],
         "Human Adaptable Policies",
         bot_offset=BOT_OFFSET,
+        vert_mid_offset=0,
+        top_offset=0,
     )
 
 
@@ -92,7 +94,6 @@ def loop(
     screen: pygame.Surface,
     agent: GMP,
     env: gym.Env,
-    slider: Slider,
     latent_interpolation: LatentInterpolation,
     *,
     fps: int = 25,
@@ -106,7 +107,16 @@ def loop(
         slider: a Slider object.
         latent_interpolation: a LatentInterpolation instance.
     """
-
+    slider = Slider(
+        screen,
+        0,
+        screen.get_height() - BOT_OFFSET,
+        screen.get_width(),
+        BOT_OFFSET,
+        min=0.0,
+        max=1.0,
+        step=0.05,
+    )
     slider_position = 0.0
     slider.setValue(slider_position)
 
