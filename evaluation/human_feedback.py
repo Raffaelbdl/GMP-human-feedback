@@ -52,8 +52,9 @@ class HumanFeedback:
         self.alpha *= self.increase_coef
 
     def next_latents(self, n: int, prev_latent: np.ndarray) -> np.ndarray:
-        latents = prev_latent
-        latents += self.alpha * self.rng.standard_normal((n, prev_latent.shape[-1]))
+        latents = prev_latent + self.alpha * self.rng.standard_normal(
+            (n, prev_latent.shape[-1])
+        )
         latents = within_norm(latents, 1.0)
         return latents
 
@@ -71,16 +72,17 @@ class HumanFeedback:
 
 def create_pygame_screen(env: gym.Env) -> pygame.Surface:
     """Instantiates a pygame screen for the human-feedback interface."""
-    pygame.init()
-    pygame.font.init()
+    from evaluation.pygame_utils import create_pygame_screen as screen_fn
 
-    pygame.display.set_caption("Human Adaptable Policies")
-    env_shape = env.render().shape
-    screen = pygame.display.set_mode(
-        (2 * env_shape[1] + MID_OFFSET, env_shape[0] + TOP_OFFSET + BOT_OFFSET)
+    shape = env.render().shape
+    return screen_fn(
+        shape[1] * 2,
+        shape[0],
+        "Human Adaptable Policies",
+        bot_offset=BOT_OFFSET,
+        vert_mid_offset=MID_OFFSET,
+        top_offset=TOP_OFFSET,
     )
-
-    return screen
 
 
 def surface_title(title: str) -> pygame.Surface:
