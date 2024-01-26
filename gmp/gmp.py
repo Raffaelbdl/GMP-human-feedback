@@ -164,7 +164,7 @@ def update_step_factory(train_state: TrainStatePolicyValue, config: AlgoConfig):
             key,
             config.algo_params.diversity_latent_samples,
             config.algo_params.latent_size,
-        )  # n, l
+        )
 
         dists = []
         for l in sample_latents:
@@ -173,15 +173,13 @@ def update_step_factory(train_state: TrainStatePolicyValue, config: AlgoConfig):
                 observations,
                 jnp.repeat(jnp.expand_dims(l, axis=0), len(observations), axis=0),
             )
-            dists.append(
-                policy_apply({"params": params.params_policy}, *nh, skip=False)
-            )
+            dists.append(policy_apply({"params": params.params_policy}, *nh, skip=True))
 
         divergence = []
         for i in range(0, config.algo_params.diversity_latent_samples - 1):
             for j in range(i + 1, config.algo_params.diversity_latent_samples):
                 dist_i, dist_j = dists[i], dists[j]
-                divergence.append(jnp.mean(jnp.exp(-dist_i.kl_divergence(dist_j))))
+                divergence.append(jnp.mean(-dist_i.kl_divergence(dist_j)))
         loss_divergence = jnp.mean(jnp.array(divergence))
 
         # value
