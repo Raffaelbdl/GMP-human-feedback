@@ -1,3 +1,5 @@
+import pytest
+
 import flax.linen as nn
 import jax
 
@@ -5,6 +7,7 @@ import rl.config as cfg
 
 from gmp.config import GmpParams
 from gmp.module import train_state_factory
+from gmp.module import Architecture, architecture_fn
 
 from tests.test_env import make_test_env
 
@@ -36,3 +39,12 @@ def test_train_state_factory():
     )
     train_state = train_state_factory(jax.random.key(0), withmap_config, tabulate=True)
     assert True
+
+
+def test_architecture_fn():
+    assert architecture_fn("Multiplicative") is Architecture.Multiplicative
+    assert architecture_fn("multiplicAtive") is Architecture.Multiplicative
+    assert architecture_fn("StyleAdaIN") is Architecture.StyleAdaIN
+    assert architecture_fn("StyLeadaIn") is Architecture.StyleAdaIN
+    with pytest.raises(KeyError):
+        architecture_fn("NotValid")
