@@ -66,7 +66,7 @@ def make_config(
 ) -> tuple[gym.vector.VectorEnv, cfg.AlgoConfig]:
     n_envs = max(2, n_envs)
     envs, env_cfg = make_vec_env(task, seed, n_envs)
-    n_env_steps = 500_000 // n_envs if task == "cartpole" else 100_000 // 8
+    n_env_steps = 500_000 // n_envs if task == "cartpole" else 100_000 // n_envs
 
     gmp_params = GmpParams(
         gamma=0.99,
