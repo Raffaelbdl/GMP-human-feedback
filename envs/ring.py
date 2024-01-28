@@ -71,7 +71,7 @@ class FlattenImage(ObservationWrapper):
         )
 
     def observation(self, observation):
-        return np.reshape(observation, -1)
+        return np.reshape(observation, -1) / 10.0
 
 
 def make_ring(seed: int) -> tuple[Env, cfg.EnvConfig]:
