@@ -1,4 +1,4 @@
-git+https://github.com/Raffaelbdl/flax_rl.git@ff07be2f3588ab21d5b879de135f871353657ec2
+git+https://github.com/Raffaelbdl/rl_tools.git@ff07be2f3588ab21d5b879de135f871353657ec2
 git+https://github.com/Raffaelbdl/jrd_extensions
 git+https://github.com/Raffaelbdl/distrax_flax
 
